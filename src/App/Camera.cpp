@@ -1,6 +1,6 @@
 #include "App/Camera.hpp"
 
-Camera::Camera(Transform& t, float _fov, float _aspect, float _near, float _far)
+Camera::Camera(Transform& t, float _aspect, float _fov, float _near, float _far)
 : fov(_fov), aspect(_aspect), near(_near), far(_far), transform(t)
 {
     view = glm::mat4(1.f);
