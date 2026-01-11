@@ -6,8 +6,9 @@
 #include "LowLevelShit/VBO.hpp"
 #include "LowLevelShit/EBO.hpp"
 #include "LowLevelShit/Texture2D.hpp"
-#include "Renderable.hpp"
+#include "Drawable.hpp"
 #include "App/Camera.hpp"
+#include "ECS/ECS.hpp"
 
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -50,15 +51,8 @@ App::App(AppSettings _AppSettings) : m_Settings(_AppSettings)
     glfwSwapInterval(0); // No VSync. 1 = VSync
     glEnable(GL_DEPTH_TEST);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // Blending alpha thingy. Basically lets stuff be opaque or not
-    
 
-    // Standard creation
-
-    float fov = 45.f;
-    float aspect_ratio = m_Settings.WindowHeight / m_Settings.WindowWidth;
-
-    m_Camera = std::make_shared<Camera>(fov, aspect_ratio, 0.001f);
-    m_Renderer = std::make_unique<Renderer>(m_Window, m_Camera);
+    m_Renderer = std::make_unique<Renderer>(m_Window);
 }
 
 void App::Run()
@@ -70,36 +64,55 @@ void App::Run()
 
     // }; 
 
-    std::vector<Vertex> vertices = {
+        entt::registry registry;
+        // Standard creation
+        
+        std::vector<Vertex> vertices = {
             {{0.5f,  .5f, 0.0f}, {1.f, 0.f, 0.f, 1.f}, {1,1}}, // top  right
             {{.5f, -.5f, .0f}, {0.f, 1.f, 0.f, 1.f}, {1,0}}, // bottom right
             {{-.5f, -.5f, .0f}, {0.f,0.f,1.f,1.f}, {0,0}},  // bottom left
             {{-.5f, .5f, .0f}, {0.f,0.f,1.f,1.f}, {0,1}},  // top left
-     }; 
+        }; 
+        
+        std::vector<GLuint> indices = {
+            0,1,2,
+            3,2,0
+        };
+        
+        Shader shader = Shader("Shaders/standard_texture.frag", "Shaders/standard_texture.vert");
+        
+        Texture2D texture = Texture2D("Resources/wall.jpg");
+        Texture2D texture2 = Texture2D("Resources/placeholder.png");
+        
+        
+        // Camera
+        auto cam = registry.create();
 
-    std::vector<GLuint> indices = {
-        0,1,2,
-        3,2,0
-    };
-    Shader shader = Shader("Shaders/standard_texture.frag", "Shaders/standard_texture.vert");
+        registry.emplace<Transform>(cam);
+        auto& cam_transform = registry.get<Transform>(cam);
+        cam_transform.SetPosition({0.f, 0.f, 5.f});
 
-    Texture2D texture = Texture2D("Resources/wall.jpg");
-    Texture2D texture2 = Texture2D("Resources/placeholder.png");
+        
+        registry.emplace<Camera>(
+            cam, 
+            cam_transform, 
+            static_cast<float>(m_Settings.WindowWidth) / static_cast<float>(m_Settings.WindowHeight),
+            90.f
+        );
+        
+        auto cam_cam = registry.get<Camera>(cam);
+        // Entities
+        auto entity_a = registry.create();
+        registry.emplace<Transform>(entity_a);
+        registry.emplace<Drawable>(entity_a, vertices, indices, shader, texture);
+        
+        auto& transform_entity = registry.get<Transform>(entity_a);
+        transform_entity.SetPosition({0.f,0.f,0.f});
+        
+        double lastFrame = glfwGetTime();
 
-    Renderable r(vertices, indices, shader, texture);
-    Renderable s(vertices, indices, shader, texture2);
-    r.RecreateTexture2D("Resources/abc.png");
-
-    m_Camera->SetPosition({0.f, 0.f, 3.f});
-    m_Camera->LookAt({0.f, 0.f, 0.f});
-    r.SetPosition({0.f, 0.f, 0.f});
-    
-    s.SetPosition({3.f, 0.f, 0.f});
-    s.SetScale({1.f,1.f,1.f});
-    s.Rotate({0.f, 0.f, -90.f});
-
-    double lastFrame = glfwGetTime();
-    while (!glfwWindowShouldClose(m_Window))
+        
+        while (!glfwWindowShouldClose(m_Window))
     {        
         // recalculate delta time
         double currentFrame = glfwGetTime();
@@ -108,26 +121,11 @@ void App::Run()
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         m_Renderer->Update(dt);
-
         m_Renderer->Begin();
-
-        auto shader_a = r.GetShader();
-        auto shader_b = s.GetShader();
-
-        m_Camera->Render();
         
-        shader_a.UseProgram();
-        shader_a.SetMatrix4("VP_mat", 1, glm::value_ptr(m_Camera->GetVP()));
-        
-        shader_b.UseProgram();
-        shader_b.SetMatrix4("VP_mat", 1, glm::value_ptr(m_Camera->GetVP()));
-        
-        r.Draw();
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
-
-        s.Draw();
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
+        m_Renderer->Render(registry);
 
         m_Renderer->End();
 
@@ -144,7 +142,7 @@ void App::Update()
     m_Settings.WindowHeight = height;
     m_Settings.WindowWidth = width;
 
-    m_Camera->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
+    m_Renderer->SetWindowAspectRatio(static_cast<float>(width) / static_cast<float>(height));
 }
 
 void frame_buffer_size_callback(GLFWwindow* window, int width, int height)

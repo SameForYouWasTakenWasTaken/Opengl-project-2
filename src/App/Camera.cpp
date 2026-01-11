@@ -1,7 +1,7 @@
 #include "App/Camera.hpp"
 
-Camera::Camera(float _fov, float _aspect, float _near, float _far)
-: fov(_fov), aspect(_aspect), near(_near), far(_far)
+Camera::Camera(Transform& t, float _fov, float _aspect, float _near, float _far)
+: fov(_fov), aspect(_aspect), near(_near), far(_far), transform(t)
 {
     view = glm::mat4(1.f);
     projection = glm::mat4(1.f);
@@ -34,19 +34,9 @@ void Camera::SetFar(float n)
     dirty_proj = true;
 }
 
-void Camera::Move(const glm::vec3& inc)
-{
-    SetPosition({cam_pos + inc});
-}
-
-void Camera::SetPosition(const glm::vec3& pos)
-{
-    cam_pos = pos;
-}
-
 void Camera::LookAt(const glm::vec3& target)
 {
-    cam_front = glm::normalize(target - cam_pos);
+    cam_front = glm::normalize(target - transform.position);
 }
 
 glm::mat4 Camera::GetVP() const
@@ -58,7 +48,7 @@ glm::mat4 Camera::GetVP() const
 void Camera::Render()
 {
     UpdateSettings();
-    view = glm::lookAt(cam_pos, cam_pos + cam_front, cam_up);
+    view = glm::lookAt(transform.position, transform.position + cam_front, cam_up);
 }
 
 void Camera::UpdateSettings() const
@@ -67,8 +57,4 @@ void Camera::UpdateSettings() const
         projection = glm::perspective(glm::radians(fov), aspect, near, far);
 
     dirty_proj = false;
-}
-
-glm::vec3 Camera::GetPosition() const {
-    return cam_pos; 
 }

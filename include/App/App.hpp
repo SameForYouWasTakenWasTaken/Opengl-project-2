@@ -12,7 +12,6 @@ static void frame_buffer_size_callback(GLFWwindow* window, int width, int height
 
 class App final {
     std::unique_ptr<Renderer> m_Renderer;
-    std::shared_ptr<Camera> m_Camera;
     AppSettings m_Settings;
 
     GLFWwindow* m_Window;
