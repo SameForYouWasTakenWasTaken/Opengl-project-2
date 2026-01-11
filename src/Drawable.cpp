@@ -61,7 +61,7 @@ void Drawable::RecreateTexture2D(const char* TextureFilepath, TextureSettings se
 {
     texture2D.SetSettings(settings);
     texture2D.Recreate(TextureFilepath);
-    if (glIsTexture(texture2D.GetTexture() == GL_FALSE))
+    if (glIsTexture(texture2D.GetTexture()) == GL_FALSE)
     {
         spdlog::error("Something went wrong when recreating the texture! Texture does not exist");
     }
