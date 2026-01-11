@@ -63,14 +63,13 @@ void Renderer::Render(entt::registry& r)
     auto view = r.view<Transform, Drawable>();
     auto cameras = r.view<Camera, Transform>();
     
-    entt::entity active_camera_entity;
-
-    cameras.each([&](auto entity, Camera& cam, Transform& t) {
-        active_camera_entity = entity;
-        return; // Only allow the first one
-    });
-
-    active_cam = &cameras.get<Camera>(active_camera_entity); 
+    active_cam = nullptr;
+    for (auto entity : cameras) {
+        active_cam = &cameras.get<Camera>(entity);
+        break; // Only use the first camera
+    }
+    
+    if (active_cam == nullptr) return;
     active_cam->SetFOV(45.f);
 
     view.each([this](auto entity, Transform& transform, Drawable& drawable){
