@@ -7,8 +7,9 @@
 #include "LowLevelShit/EBO.hpp"
 #include "LowLevelShit/Texture2D.hpp"
 #include "Drawable.hpp"
-#include "App/Camera.hpp"
+#include "App/CameraSystem.hpp"
 #include "ECS/ECS.hpp"
+        #include "ECS/Events.hpp"
 
 #include "glm/mat4x4.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -30,7 +31,7 @@ App::App(AppSettings _AppSettings) : m_Settings(_AppSettings)
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
     
-    m_Window = glfwCreateWindow(m_Settings.WindowHeight, m_Settings.WindowWidth, m_Settings.AppName.c_str(), NULL, NULL);
+    m_Window = glfwCreateWindow(m_Settings.WindowWidth, m_Settings.WindowHeight, m_Settings.AppName.c_str(), NULL, NULL);
     
     if (!m_Window)
     {
@@ -51,22 +52,28 @@ App::App(AppSettings _AppSettings) : m_Settings(_AppSettings)
     glfwSwapInterval(0); // No VSync. 1 = VSync
     glEnable(GL_DEPTH_TEST);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // Blending alpha thingy. Basically lets stuff be opaque or not
-
-    m_Renderer = std::make_unique<Renderer>(m_Window);
 }
+
+
+constexpr void onCameraCreated(CameraCreatedEvent& event)
+{
+    auto registry = event.registry;
+    auto cam = event.camera;
+
+    auto& transform = registry->get<Transform>(cam);
+    spdlog::info("Camera spawned at {}, {}, {}!", transform.position.x, transform.position.y, transform.position.z);
+};
 
 void App::Run()
 {
-    // std::vector<Vertex> vertices = {
-    //     {{0.5f,  .5f, 0.0f}, {1.f, 0.f, 0.f, 1.f}, {1.f, 1.f}}, // top  right
-    //     {{.5f, -.5f, .0f}, {0.f, 1.f, 0.f, 1.f}, {1.f, 0.f}}, // bottom right
-    //     {{-.5f, -.5f, .0f}, {0.f,0.f,1.f,1.f}, {0.f, 0.f}},  // bottom left
-
-    // }; 
 
         entt::registry registry;
-        // Standard creation
+        entt::dispatcher dispatcher;
+
+        m_Renderer = std::make_unique<Renderer>(m_Window, registry);
         
+        CameraSystem camsys(registry, dispatcher);
+        // Standard creation
         std::vector<Vertex> vertices = {
             {{0.5f,  .5f, 0.0f}, {1.f, 0.f, 0.f, 1.f}, {1,1}}, // top  right
             {{.5f, -.5f, .0f}, {0.f, 1.f, 0.f, 1.f}, {1,0}}, // bottom right
@@ -83,24 +90,24 @@ void App::Run()
         
         Texture2D texture = Texture2D("Resources/wall.jpg");
         Texture2D texture2 = Texture2D("Resources/placeholder.png");
-        
+
+        // Lambdas dont work, tried too much and this shit just.. I dunno man..
+        dispatcher.sink<CameraCreatedEvent>().connect<&onCameraCreated>();
         
         // Camera
         auto cam = registry.create();
 
         registry.emplace<Transform>(cam);
+        
         auto& cam_transform = registry.get<Transform>(cam);
         cam_transform.SetPosition({0.f, 0.f, 5.f});
-
         
-        registry.emplace<Camera>(
-            cam, 
-            cam_transform, 
-            static_cast<float>(m_Settings.WindowWidth) / static_cast<float>(m_Settings.WindowHeight),
-            90.f
+        registry.emplace<CameraComponent>(
+            cam,
+            static_cast<float>(m_Settings.WindowWidth) / static_cast<float>(m_Settings.WindowHeight)
         );
-        
-        auto cam_cam = registry.get<Camera>(cam);
+        auto cam_cam = registry.get<CameraComponent>(cam);
+
         // Entities
         auto entity_a = registry.create();
         registry.emplace<Transform>(entity_a);
@@ -111,7 +118,6 @@ void App::Run()
         
         double lastFrame = glfwGetTime();
 
-        
         while (!glfwWindowShouldClose(m_Window))
     {        
         // recalculate delta time
@@ -122,7 +128,7 @@ void App::Run()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        m_Renderer->Update(dt);
+        m_Renderer->Update(registry, dt);
         m_Renderer->Begin();
         
         m_Renderer->Render(registry);

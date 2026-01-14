@@ -5,7 +5,7 @@
 
 #include "App/AppSettings.hpp"
 #include "App/Renderer.hpp"
-#include "App/Camera.hpp"
+#include "App/CameraSystem.hpp"
 
 
 static void frame_buffer_size_callback(GLFWwindow* window, int width, int height);

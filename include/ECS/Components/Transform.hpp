@@ -16,4 +16,7 @@ struct Transform {
     void SetPosition(const glm::vec3& new_pos);
     void SetScale(const glm::vec3& new_scale);
     void SetRotation(const glm::vec3& new_rotation);
+    
+    // These are just standalone calculations. TRhese dont change the private variables at all.
+    glm::vec3 LookAtVec3(const glm::vec3& target);
 };

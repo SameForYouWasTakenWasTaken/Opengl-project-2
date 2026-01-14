@@ -1,9 +1,8 @@
 #include "App/Renderer.hpp"
 
-Renderer::Renderer(GLFWwindow* window)
-: window(window)
+Renderer::Renderer(GLFWwindow* window, entt::registry& registry)
+: window(window), CamSystem(std::make_unique<CameraSystem>(registry, dispatcher))
 {
-    
 }
 
 void Renderer::Begin()
@@ -18,62 +17,86 @@ void Renderer::End()
 
 void Renderer::SetWindowAspectRatio(float ratio)
 {
-    if (active_cam)
-        active_cam->SetAspectRatio(ratio);
+    if (CamSystem->active_cam_entity != entt::null)
+    {
+        dirty_cam = true;
+    }
 }
 
-void Renderer::Update(float delta)
+void Renderer::Update(entt::registry& registry, float delta)
 {
-    float speed = 5.f * delta;
+    if (CamSystem->active_cam_entity == entt::null) 
+    {
+        spdlog::error("Renderer::Update() returned an error! : Camera system' active camera is null!");
+        return;
+    };
+    
+    if (!registry.valid(CamSystem->active_cam_entity))
+    {
+        spdlog::warn("Renderer::Update() returned a warning! : Camera system' active camera is NOT apart of this registry!");
+        return;
+    }
 
-    if (active_cam == nullptr) return;
+    float speed = 5.f * delta;
+    auto& transform = registry.get<Transform>(CamSystem->active_cam_entity);
+
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT))
     {
         speed = 0.005f * delta;
     }
     if (glfwGetKey(window, GLFW_KEY_W))
     {
-        active_cam->transform.Move({0.f, 0.f, -speed});
+        transform.Move({0.f, 0.f, -speed});
     }
     if (glfwGetKey(window, GLFW_KEY_A))
     {
-        active_cam->transform.Move({-speed, 0.f, 0.f});
+        transform.Move({-speed, 0.f, 0.f});
     }
     if (glfwGetKey(window, GLFW_KEY_S))
     {
-        active_cam->transform.Move({0.f, 0.f, speed});
+        transform.Move({0.f, 0.f, speed});
     }
     if (glfwGetKey(window, GLFW_KEY_D))
     {
-        active_cam->transform.Move({speed, 0.f, 0.f});
+        transform.Move({speed, 0.f, 0.f});
     }
     // Up and down
     if (glfwGetKey(window, GLFW_KEY_E))
     {
-        active_cam->transform.Move({0.f, speed, 0.f});
+        transform.Move({0.f, speed, 0.f});
     }
     if (glfwGetKey(window, GLFW_KEY_Q))
     {
-        active_cam->transform.Move({0.f, -speed, 0.f});
+        transform.Move({0.f, -speed, 0.f});
     }
 }
 
-void Renderer::Render(entt::registry& r)
+void Renderer::Render(entt::registry& registry)
 {
-    auto view = r.view<Transform, Drawable>();
-    auto cameras = r.view<Camera, Transform>();
-    
-    active_cam = nullptr;
-    for (auto entity : cameras) {
-        active_cam = &cameras.get<Camera>(entity);
-        break; // Only use the first camera
-    }
-    
-    if (active_cam == nullptr) return;
-    active_cam->SetFOV(45.f);
+    CamSystem->RenderSystem(registry); // Already run the render system to load everything in, dont move it under the if statements
 
-    view.each([this](auto entity, Transform& transform, Drawable& drawable){
-        if (active_cam == nullptr) return;
+    auto view = registry.view<Transform, Drawable>();
+    
+    if (CamSystem->active_cam_entity == entt::null) 
+    {
+        spdlog::error("Renderer::Render() returned an error! : Camera system' active camera is null!");
+        return;
+    };
+    
+    if (!registry.valid(CamSystem->active_cam_entity))
+    {
+        spdlog::warn("Renderer::Render() returned a warning! : Camera system' active camera is NOT apart of this registry!");
+        return;
+    }
+
+    auto& cc = registry.get<CameraComponent>(CamSystem->active_cam_entity);
+
+    if (dirty_cam)
+        cc.SetAspectRatio(aspect_ratio);
+
+    dirty_cam = false;
+
+    view.each([this, &cc](auto entity, Transform& transform, Drawable& drawable){
         std::vector<Vertex> vertices = drawable.GetVertices();
         std::vector<GLuint> indices = drawable.GetIndices();
         
@@ -100,11 +123,11 @@ void Renderer::Render(entt::registry& r)
         model = glm::rotate(model, glm::radians(transform.rotation.y), {0,1,0});
         model = glm::rotate(model, glm::radians(transform.rotation.z), {0,0,1});
         model = glm::scale(model, transform.scale);
-        
-        active_cam->Render();
+
+
         drawable.shader.UseProgram();
         drawable.shader.SetMatrix4("model", 1, glm::value_ptr(model));
-        drawable.shader.SetMatrix4("VP_mat", 1, glm::value_ptr(active_cam->GetVP()));
+        drawable.shader.SetMatrix4("VP_mat", 1, glm::value_ptr(cc.GetVP()));
         
         
         if (drawable.using_texture)

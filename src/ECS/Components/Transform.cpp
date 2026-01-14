@@ -31,3 +31,8 @@ void Transform::SetScale(const glm::vec3& _scale)
 {
     scale = _scale;
 }
+
+glm::vec3 Transform::LookAtVec3(const glm::vec3& target)
+{
+    return glm::normalize(target - position); 
+}
